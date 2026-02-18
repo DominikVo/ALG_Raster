@@ -31,11 +31,9 @@ public class App {
     private boolean dottedMode = false;
     private boolean snapMode = false;
     private boolean polygonMode = false;
-
-    // Polygon building state
     private final List<Point> polygonPoints = new ArrayList<>();
-
-    // Status bar components
+    private int movingVertexIndex = -1;
+    private static final int VERTEX_HIT_RADIUS = 6;
     private final JPanel statusPanel;
     private final JLabel mainModeLabel;
     private final JLabel secondaryLabel;
@@ -84,7 +82,6 @@ public class App {
 
         frame.add(panel, BorderLayout.CENTER);
 
-        // Create status bar
         statusPanel = new JPanel(new BorderLayout());
         statusPanel.setPreferredSize(new Dimension(width, 24));
         statusPanel.setBackground(new Color(0xf0f0f0));
@@ -125,40 +122,57 @@ public class App {
             @Override
             public void mousePressed(MouseEvent e) {
                 pPomocny = new Point(e.getX(), e.getY());
-            }
+
+                if (polygonMode && !polygonPoints.isEmpty()) {
+                    int idx = getVertexIndexNear(pPomocny);
+                    if (idx != -1) {
+                        movingVertexIndex = idx;
+                        return;
+                    }
+                }
+             }
 
             @Override
             public void mouseReleased(MouseEvent e) {
                 Point pPomocny2 = new Point(e.getX(), e.getY());
+
+                if (movingVertexIndex != -1) {
+                    movingVertexIndex = -1;
+                    panel.repaint();
+                    return;
+                }
 
                 if (snapMode && pPomocny != null) {
                     pPomocny2 = snapPoint(pPomocny, pPomocny2);
                 }
 
                 if (polygonMode) {
-                    // Add vertex(s) to polygon builder
-                    if (pPomocny != null && polygonPoints.isEmpty()) {
-                        // If first segment, include the press point as starting vertex
-                        polygonPoints.add(pPomocny);
+                    if (pPomocny != null) {
+                        if (polygonPoints.isEmpty() || !samePoint(polygonPoints.get(polygonPoints.size() - 1), pPomocny)) {
+                            polygonPoints.add(pPomocny);
+                        }
                     }
-                    polygonPoints.add(pPomocny2);
 
-                    // redraw: background, saved canvas, polygon edges preview
+                    polygonPoints.add(pPomocny2);
                     clear(0xaaaaaa);
                     canvasRasterizer.rasterize(lineCanvas);
 
-                    // rasterize built polygon edges
                     for (int i = 1; i < polygonPoints.size(); i++) {
                         Point a = polygonPoints.get(i - 1);
                         Point b = polygonPoints.get(i);
                         rasterizer.rasterize(new Line(a, b, dottedMode));
                     }
 
+                    if (polygonPoints.size() >= 2) {
+                        Point first = polygonPoints.get(0);
+                        Point last = polygonPoints.get(polygonPoints.size() - 1);
+                        rasterizer.rasterize(new Line(last, first, dottedMode));
+                    }
+
                     panel.repaint();
                     return;
                 }
 
-                // normal line mode
                 Line line = new Line(pPomocny, pPomocny2, dottedMode);
 
                 clear(0xaaaaaa);
@@ -172,6 +186,30 @@ public class App {
             @Override
             public void mouseDragged(MouseEvent e) {
                 Point pPomocny2 = new Point(e.getX(), e.getY());
+
+                if (movingVertexIndex != -1) {
+                    // Move only the selected vertex to the current mouse point
+                    Point target = polygonPoints.get(movingVertexIndex);
+                    target.setX(pPomocny2.getX());
+                    target.setY(pPomocny2.getY());
+
+                    // redraw polygon preview while moving vertex
+                    clear(0xaaaaaa);
+                    canvasRasterizer.rasterize(lineCanvas);
+                    for (int i = 1; i < polygonPoints.size(); i++) {
+                        Point a = polygonPoints.get(i - 1);
+                        Point b = polygonPoints.get(i);
+                        rasterizer.rasterize(new Line(a, b, dottedMode));
+                    }
+                    if (polygonPoints.size() >= 2) {
+                        Point first = polygonPoints.get(0);
+                        Point last = polygonPoints.get(polygonPoints.size() - 1);
+                        rasterizer.rasterize(new Line(last, first, dottedMode));
+                    }
+
+                    panel.repaint();
+                    return;
+                }
 
                 if (snapMode && pPomocny != null) {
                     pPomocny2 = snapPoint(pPomocny, pPomocny2);
@@ -192,6 +230,12 @@ public class App {
                     Point last = polygonPoints.isEmpty() ? pPomocny : polygonPoints.get(polygonPoints.size() - 1);
                     if (last != null) {
                         rasterizer.rasterize(new Line(last, pPomocny2, dottedMode));
+                    }
+
+                    // preview closing edge from current mouse back to the first vertex (if exists)
+                    if (!polygonPoints.isEmpty()) {
+                        Point first = polygonPoints.get(0);
+                        rasterizer.rasterize(new Line(pPomocny2, first, dottedMode));
                     }
 
                     panel.repaint();
@@ -223,7 +267,6 @@ public class App {
                     clear(0xaaaaaa);
                     panel.repaint();
                 }
-                // Zapíná přichycovací mód
                 if (e.getKeyCode() == KeyEvent.VK_SHIFT) {
                     snapMode = true;
                     updateStatus();
@@ -231,7 +274,7 @@ public class App {
                 if (e.getKeyCode() == KeyEvent.VK_P) {
                     polygonMode = !polygonMode;
                     if (!polygonMode) {
-                        polygonMode();
+                        finalizePolygon();
                     } else {
                         polygonPoints.clear();
                     }
@@ -288,7 +331,7 @@ public class App {
         // Výběr bodů (Kandidáti na připnutí)
         Point[] candidates = new Point[]{horiz, vert, diag};
 
-        // Počítání myšy k nejbližšímu bodu
+        // Počítání myšle k nejbližšímu bodu
         Point best = candidates[0];
         long bestDist = dist2(best, p2);
         // Dle vzdálenosti vybírá nejlepšího kandidáta
@@ -309,7 +352,7 @@ public class App {
         return distanx * distanx + distany * distany;
     }
 
-    private void polygonMode() {
+    private void finalizePolygon() {
         if (polygonPoints.size() >= 3) {
             int n = polygonPoints.size();
             for (int i = 0; i < n; i++) {
@@ -330,5 +373,20 @@ public class App {
         String snap = snapMode ? "Snap: ON" : "Snap: OFF";
         mainModeLabel.setText(main);
         secondaryLabel.setText(dotted + "   " + snap);
+    }
+
+    private boolean samePoint(Point a, Point b) {
+        if (a == null || b == null) return false;
+        return a.getX() == b.getX() && a.getY() == b.getY();
+    }
+
+    private int getVertexIndexNear(Point p) {
+        for (int i = 0; i < polygonPoints.size(); i++) {
+            Point v = polygonPoints.get(i);
+            long dx = (long) v.getX() - p.getX();
+            long dy = (long) v.getY() - p.getY();
+            if (dx * dx + dy * dy <= (long) VERTEX_HIT_RADIUS * VERTEX_HIT_RADIUS) return i;
+        }
+        return -1;
     }
 }
