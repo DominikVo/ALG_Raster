@@ -1,27 +1,26 @@
-// src/rasterizers/CanvasRasterizer.java
 package rasterizers;
 
-import models.Line;
-import models.LineCanvas;
+import models.*;
 
 public class CanvasRasterizer {
 
-    private Rasterizer lineRasterizer;
-    private Rasterizer dottedLineRasterizer;
+    private Rasterizer rasterizer;
 
-    public CanvasRasterizer(Rasterizer lineRasterizer, Rasterizer dottedLineRasterizer) {
-        this.lineRasterizer = lineRasterizer;
-        this.dottedLineRasterizer = dottedLineRasterizer;
+    public CanvasRasterizer(Rasterizer rasterizer) {
+        this.rasterizer = rasterizer;
     }
 
     public void rasterize(LineCanvas lineCanvas) {
         for (Line line : lineCanvas.getLines()) {
-            if (line.isDotted()) {
-                dottedLineRasterizer.rasterize(line);
-            } else {
-                lineRasterizer.rasterize(line);
+            rasterizer.rasterize(line);
+        }
+        for (Circle circle : lineCanvas.getCircles()) {
+            rasterizer.rasterize(circle);
+        }
+        for (Fill fill : lineCanvas.getFills()) {
+            for (Point point : fill.getPoints()) {
+                rasterizer.getRaster().setPixel(point.getX(), point.getY(), fill.getColor());
             }
         }
     }
-
 }

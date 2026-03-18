@@ -6,7 +6,8 @@ public class Line {
 
     private Point p1, p2;
     private Color color;
-    private boolean dotted = false;
+    private LineType lineType = LineType.SOLID;
+    private int lineWidth = 1;
 
 
     public Line(Point p1, Point p2, Color color) {
@@ -15,10 +16,31 @@ public class Line {
         this.color = color;
     }
 
-    public Line(Point p1, Point p2, boolean dotted) {
+    public Line(Point p1, Point p2, LineType lineType) {
         this.p1 = p1;
         this.p2 = p2;
-        this.dotted = dotted;
+        this.lineType = lineType;
+    }
+
+    public Line(Point p1, Point p2, Color color, LineType lineType) {
+        this.p1 = p1;
+        this.p2 = p2;
+        this.color = color;
+        this.lineType = lineType;
+    }
+
+    public Line(Point p1, Point p2, Color color, LineType lineType, int lineWidth) {
+        this.p1 = p1;
+        this.p2 = p2;
+        this.color = color;
+        this.lineType = lineType;
+        this.lineWidth = lineWidth;
+    }
+
+    public Line(Point p1, Point p2, boolean isDotted) {
+        this.p1 = p1;
+        this.p2 = p2;
+        this.lineType = isDotted ? LineType.DOTTED : LineType.SOLID;
     }
 
     public Point getP1() {
@@ -45,7 +67,19 @@ public class Line {
         this.color = color;
     }
 
+    public LineType getLineType() {
+        return lineType;
+    }
+
+    public int getLineWidth() {
+        return lineWidth;
+    }
+
+    public void setLineWidth(int lineWidth) {
+        this.lineWidth = lineWidth;
+    }
+
     public boolean isDotted() {
-        return dotted;
+        return lineType == LineType.DOTTED;
     }
 }
